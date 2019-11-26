@@ -28,8 +28,8 @@ class ByteArrayOutputCapturer(private val outputStream: ByteArrayOutputStream) :
 }
 
 data class ShellOutputData(
-    val outputStream: OutputStream,
-    val outputCapturer: OutputCapturer = EmptyOutputCapturer
+        val outputStream: OutputStream,
+        val outputCapturer: OutputCapturer = EmptyOutputCapturer
 )
 
 enum class OutputMode(val shellOutputDataFactory: () -> ShellOutputData) {
@@ -46,10 +46,10 @@ enum class OutputMode(val shellOutputDataFactory: () -> ShellOutputData) {
 }
 
 private fun internalSh(
-    outputMode: OutputMode,
-    project: Project,
-    shellCommandArgs: List<String>,
-    vararg argument: String
+        outputMode: OutputMode,
+        project: Project,
+        shellCommandArgs: List<String>,
+        vararg argument: String
 ): String {
     val args = ArrayList(shellCommandArgs)
     args.add(argument.joinToString(" "))
@@ -65,10 +65,23 @@ private fun internalSh(
 
 class ShellHelper(private val shellCommandArgs: List<String> = DEFAULT_SHELL_ARGS, private val project: Project) {
     fun sh(outputMode: OutputMode, vararg argument: String) =
-        internalSh(outputMode, project, shellCommandArgs, *argument)
+            internalSh(outputMode, project, shellCommandArgs, *argument)
+
+    fun sh(outputMode: OutputMode, arguments: List<String>) =
+            internalSh(outputMode, project, shellCommandArgs, *arguments.toTypedArray())
+
+    fun sh(arguments: List<String>) = internalSh(DEFAULT_OUTPUT_MODE, project, shellCommandArgs, *arguments.toTypedArray())
+    fun sh(vararg argument: String) =
+            internalSh(DEFAULT_OUTPUT_MODE, project, shellCommandArgs, *argument)
 }
 
 fun Project.sh(outputMode: OutputMode, vararg argument: String) =
-    internalSh(outputMode, this, DEFAULT_SHELL_ARGS, *argument)
+        internalSh(outputMode, this, DEFAULT_SHELL_ARGS, *argument)
 
 fun Project.sh(vararg argument: String) = internalSh(DEFAULT_OUTPUT_MODE, this, DEFAULT_SHELL_ARGS, *argument)
+
+fun Project.sh(outputMode: OutputMode, arguments: List<String>) =
+        internalSh(outputMode, this, DEFAULT_SHELL_ARGS, *arguments.toTypedArray())
+
+fun Project.sh(arguments: List<String>) =
+        internalSh(DEFAULT_OUTPUT_MODE, this, DEFAULT_SHELL_ARGS, *arguments.toTypedArray())

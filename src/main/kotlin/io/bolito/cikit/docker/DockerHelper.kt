@@ -15,4 +15,6 @@ class DockerHelper(
     val serverVersion: String by lazy {
         shellHelper.sh(OutputMode.STRING, "docker", "version", "--format", "'{{.Server.Version}}'").trim()
     }
+
+    val runnerBuilder: DockerRunner.Builder = DockerRunner.Builder(shellHelper)
 }
