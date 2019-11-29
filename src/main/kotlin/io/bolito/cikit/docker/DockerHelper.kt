@@ -16,5 +16,5 @@ class DockerHelper(
         shellHelper.sh(OutputMode.STRING, "docker", "version", "--format", "'{{.Server.Version}}'").trim()
     }
 
-    val runnerBuilder: DockerRunner.Builder = DockerRunner.Builder(shellHelper)
+    val container: DockerContainer.Builder = DockerContainer.Builder(shellHelper)
 }

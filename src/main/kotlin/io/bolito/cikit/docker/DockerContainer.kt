@@ -16,6 +16,23 @@ data class DockerVolumeOption(val name: String, val value: String) {
     val asOption: String = "volume-opt=$name=$value"
 }
 
+private val DEFAULT_PROTOCOL = DockerPortArgument.Protocol.TCP
+
+data class DockerPortArgument(
+        val hostPort: Int,
+        val containerPort: Int,
+        val protocol: Protocol = DEFAULT_PROTOCOL
+) : ShellArgument {
+    override val asShellArgument: String by lazy {
+        return@lazy ""
+    }
+
+    enum class Protocol {
+        TCP,
+        UDP
+    }
+}
+
 data class DockerMountArgument(
         val type: DockerMountType,
         val source: Path?,
@@ -38,7 +55,9 @@ data class DockerMountArgument(
         }
     }
 
-    override val asShellArgument: String by lazy {
+
+    override val asShellArgument: String = initShellArgument()
+    private fun initShellArgument(): String {
         val stringBuffer = StringBuffer("--mount ")
         stringBuffer.append(" 'type=${type.mountTypeName}")
 
@@ -52,70 +71,97 @@ data class DockerMountArgument(
         if (volumeOptions.isNotEmpty()) {
             stringBuffer.append(volumeOptions.joinToString(separator = ",", prefix = ",") { it.asOption })
         }
-        return@lazy stringBuffer.toString()
+        return stringBuffer.toString()
     }
 }
 
-class DockerRunner(
+
+class DockerContainer(
         private val shellHelper: ShellHelper,
         private val image: String,
+        private val command: String?,
         private val commandArguments: List<String>,
         private val mountArguments: List<DockerMountArgument>,
         private val removeContainer: Boolean = false
 ) {
+    init {
+        require(!image.isBlank()) { "Image name cannot be blank!" }
+    }
+
     val shArgs: MutableList<String> = ArrayList(listOf("docker", "run"))
-    fun run() {
+    fun run(name: String? = null) {
         val args = ArrayList(listOf("docker", "run"))
 
         if (removeContainer) {
             args.add("--rm")
         }
 
+        if (name != null) {
+            args.add("--name")
+            args.add(name)
+        }
+
         args.addAll(mountArguments.map { it.asShellArgument })
         args.add(image)
+        if (command !== null) {
+            args.add(command)
+        }
         args.addAll(commandArguments)
 
         shellHelper.sh(args)
     }
 
+
     class Builder(private val shellHelper: ShellHelper) {
         private var image: String? = null
         private var removeContainer: Boolean = false
-
-        private val containerArguments: MutableList<String> = ArrayList()
+        private var command: String? = null
+        private val commandArguments: MutableList<String> = ArrayList()
         private val mountArguments: MutableList<DockerMountArgument> = ArrayList()
 
         fun addMountArgument(mountArgument: DockerMountArgument): Builder {
             mountArguments.add(mountArgument)
-
             return this
         }
 
         fun addBindMount(source: Path, destination: Path, readOnly: Boolean = true) =
                 addMountArgument(DockerMountArgument(DockerMountType.BIND, source, destination, readOnly))
 
-        fun addCommandArgument(containerArgument: String): Builder {
-            containerArguments.add(containerArgument)
-
+        fun withCommand(command: String): Builder {
+            this.command = command
             return this
         }
 
-        fun removeContainer() {
+        fun addCommandArgument(vararg commandArgument: String): Builder {
+            commandArguments.addAll(commandArgument)
+            return this
+        }
+
+        fun removeContainer(): Builder {
             removeContainer = true
+            return this
         }
 
         fun withImage(image: String): Builder {
             this.image = image
-
             return this
         }
 
-        fun build(): DockerRunner = DockerRunner(
+        fun toContainer(): DockerContainer = DockerContainer(
                 shellHelper,
                 requireNotNull(image) { "Container name cannot be null!" },
-                containerArguments,
+                command,
+                commandArguments,
                 mountArguments,
                 removeContainer
         )
+
+        fun run(name: String? = null) {
+            toContainer().run(name)
+        }
     }
+}
+
+fun main() {
+    println(DockerMountArgument(DockerMountType.BIND, "/", "/").asShellArgument)
 }
