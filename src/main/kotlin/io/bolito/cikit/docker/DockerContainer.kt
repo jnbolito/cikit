@@ -16,20 +16,18 @@ data class DockerVolumeOption(val name: String, val value: String) {
     val asOption: String = "volume-opt=$name=$value"
 }
 
-private val DEFAULT_PROTOCOL = DockerPortArgument.Protocol.TCP
+private val DEFAULT_PROTOCOL = DockerPortMappingArgument.Protocol.TCP
 
-data class DockerPortArgument(
+data class DockerPortMappingArgument(
         val hostPort: Int,
         val containerPort: Int,
         val protocol: Protocol = DEFAULT_PROTOCOL
 ) : ShellArgument {
-    override val asShellArgument: String by lazy {
-        return@lazy ""
-    }
+    override val asShellArgument: String = "--mount $hostPort:$containerPort/${protocol.protocolName}"
 
-    enum class Protocol {
-        TCP,
-        UDP
+    enum class Protocol(val protocolName: String) {
+        TCP("tcp"),
+        UDP("udp")
     }
 }
 
@@ -56,8 +54,7 @@ data class DockerMountArgument(
     }
 
 
-    override val asShellArgument: String = initShellArgument()
-    private fun initShellArgument(): String {
+    override val asShellArgument: String = let {
         val stringBuffer = StringBuffer("--mount ")
         stringBuffer.append(" 'type=${type.mountTypeName}")
 
@@ -71,7 +68,8 @@ data class DockerMountArgument(
         if (volumeOptions.isNotEmpty()) {
             stringBuffer.append(volumeOptions.joinToString(separator = ",", prefix = ",") { it.asOption })
         }
-        return stringBuffer.toString()
+
+        return@let stringBuffer.toString()
     }
 }
 
@@ -82,6 +80,7 @@ class DockerContainer(
         private val command: String?,
         private val commandArguments: List<String>,
         private val mountArguments: List<DockerMountArgument>,
+        private val portMappingArguments: List<DockerPortMappingArgument>,
         private val removeContainer: Boolean = false
 ) {
     init {
@@ -92,20 +91,32 @@ class DockerContainer(
     fun run(name: String? = null) {
         val args = ArrayList(listOf("docker", "run"))
 
+        // --rm
         if (removeContainer) {
             args.add("--rm")
         }
 
+        // --name
         if (name != null) {
             args.add("--name")
             args.add(name)
         }
 
+        // mount arguments
         args.addAll(mountArguments.map { it.asShellArgument })
+
+        // port arguments
+        args.addAll(portMappingArguments.map { it.asShellArgument })
+
+        // with image
         args.add(image)
+
+        // with command
         if (command !== null) {
             args.add(command)
         }
+
+        //with command args
         args.addAll(commandArguments)
 
         shellHelper.sh(args)
@@ -118,6 +129,7 @@ class DockerContainer(
         private var command: String? = null
         private val commandArguments: MutableList<String> = ArrayList()
         private val mountArguments: MutableList<DockerMountArgument> = ArrayList()
+        private val portMappingArguments: MutableList<DockerPortMappingArgument> = ArrayList()
 
         fun addMountArgument(mountArgument: DockerMountArgument): Builder {
             mountArguments.add(mountArgument)
@@ -153,6 +165,7 @@ class DockerContainer(
                 command,
                 commandArguments,
                 mountArguments,
+                portMappingArguments,
                 removeContainer
         )
 
