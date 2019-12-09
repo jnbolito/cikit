@@ -3,8 +3,13 @@ package io.bolito.cikit.docker
 import io.bolito.cikit.shell.ShellArgument
 import io.bolito.cikit.shell.ShellHelper
 import io.bolito.cikit.util.io.toPath
+import io.bolito.cikit.util.io.toPathNullable
+import io.bolito.cikit.util.kotlin.returnThis
+import java.lang.IllegalArgumentException
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
 
 enum class DockerMountType(val mountTypeName: String) {
     BIND("bind"),
@@ -44,7 +49,7 @@ data class DockerMountArgument(
             destination: String,
             readOnly: Boolean = true,
             volumeOptions: List<DockerVolumeOption> = emptyList()
-    ) : this(type, source.toPath(), Paths.get(destination), readOnly, volumeOptions)
+    ) : this(type, source.toPathNullable(), Paths.get(destination), readOnly, volumeOptions)
 
     init {
         // only volumes may omit the source option
@@ -137,27 +142,32 @@ class DockerContainer(
         }
 
         fun addBindMount(source: Path, destination: Path, readOnly: Boolean = true) =
-                addMountArgument(DockerMountArgument(DockerMountType.BIND, source, destination, readOnly))
+                addMountArgument(
+                        DockerMountArgument(
+                                DockerMountType.BIND,
+                                source,
+                                destination,
+                                readOnly
+                        )
+                )
 
-        fun withCommand(command: String): Builder {
-            this.command = command
-            return this
-        }
+        fun addBindMount(source: String, destination: String, readOnly: Boolean = true) =
+                addMountArgument(
+                        DockerMountArgument(
+                                DockerMountType.BIND,
+                                source.toPath(),
+                                destination.toPath(),
+                                readOnly
+                        )
+                )
 
-        fun addCommandArgument(vararg commandArgument: String): Builder {
-            commandArguments.addAll(commandArgument)
-            return this
-        }
+        fun withCommand(command: String) = returnThis { this.command = command }
 
-        fun removeContainer(): Builder {
-            removeContainer = true
-            return this
-        }
+        fun addCommandArgument(vararg commandArgument: String) = returnThis { commandArguments.addAll(commandArgument) }
 
-        fun withImage(image: String): Builder {
-            this.image = image
-            return this
-        }
+        fun removeContainer() = returnThis { removeContainer = true }
+
+        fun withImage(image: String) = returnThis { this.image = image }
 
         fun toContainer(): DockerContainer = DockerContainer(
                 shellHelper,
@@ -173,8 +183,4 @@ class DockerContainer(
             toContainer().run(name)
         }
     }
-}
-
-fun main() {
-    println(DockerMountArgument(DockerMountType.BIND, "/", "/").asShellArgument)
 }
