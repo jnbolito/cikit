@@ -1,9 +1,18 @@
 import com.jfrog.bintray.gradle.BintrayExtension
 import java.util.Date
 
-val cikitVersion = "0.1.0"
+val ciKitBaseVersion = "0.2.0"
+
+val isRelease: Boolean = project.findProperty("release")?.toString()?.toBoolean() ?: false
+val versionSuffix = if (!isRelease) "-SNAPSHOT" else ""
+val cikitVersion = "$ciKitBaseVersion$versionSuffix"
+
+val repoUsername = System.getenv("BINTRAY_USER")
+val repoPassword = System.getenv("BINTRAY_API_KEY")
+
 group = "io.bolito"
 version = cikitVersion
+
 
 // TODO: Place kotlin version in gradle properties
 plugins {
@@ -49,6 +58,17 @@ tasks {
 
 
     publishing {
+        if (!isRelease) {
+            repositories {
+                maven("http://oss.jfrog.org/oss-snapshot-local") {
+                    credentials {
+                        username = repoUsername
+                        password = repoPassword
+                    }
+                }
+            }
+        }
+
         publications {
             create<MavenPublication>("CikitPublication") {
                 groupId = "io.bolito"
@@ -64,9 +84,9 @@ tasks {
 }
 
 bintray {
-    user = System.getenv("BINTRAY_USER")
-    key = System.getenv("BINTRAY_API_KEY")
-    publish = false
+    user = repoUsername
+    key = repoPassword
+    publish = isRelease
     override = true
     dryRun = false
     setPublications("CikitPublication")
