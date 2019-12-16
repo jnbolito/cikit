@@ -10,13 +10,13 @@ import java.nio.file.Paths
 import java.time.Instant
 
 data class DockerBuildCommandResult(
-    val imageId: String,
-    val tags: Set<DockerTagArgument>,
-    override val timestamp: Instant = Instant.now()
+        val imageId: String,
+        val tags: Set<DockerTagArgument>,
+        override val timestamp: Instant = Instant.now()
 ) : DockerCommandResult
 
 data class DockerBuildArgument(val argumentName: String, val argumentValue: String, val shellQuote: String = "'") :
-    ShellArgument {
+        ShellArgument {
     override val asShellArgument: String = "--build-arg $argumentName=$shellQuote$argumentValue$shellQuote"
 }
 
@@ -25,10 +25,11 @@ data class DockerTagArgument(val name: String, val version: String = "latest") :
 }
 
 class DockerBuildCommand(
-    private val shellHelper: ShellHelper,
-    private val buildPath: Path,
-    private val tags: Set<DockerTagArgument>,
-    private val buildArguments: Set<DockerBuildArgument>
+        private val shellHelper: ShellHelper,
+        private val buildPath: Path,
+        private val tags: Set<DockerTagArgument>,
+        private val buildArguments: Set<DockerBuildArgument>,
+        private val dockerfilePath: Path? = null
 ) : DockerCommand<DockerBuildCommandResult> {
     private val dockerBuildArgs: List<String> = let {
         val args = ArrayList<String>()
@@ -38,6 +39,12 @@ class DockerBuildCommand(
 
         // tags
         args.addAll(tags.asSequence().map { it.asShellArgument })
+
+        // -f /path/to/Dockerfile
+        if (dockerfilePath !== null) {
+            args.add("-f")
+            args.add(dockerfilePath.toString())
+        }
 
         // build path
         args.add(buildPath.toAbsolutePath().toString())
@@ -53,7 +60,7 @@ class DockerBuildCommand(
 
         if (!shellResult.isSuccess) {
             throw DockerCommandException(
-                "Docker build command failed! Command:\n\t${args.joinToString(" ")}"
+                    "Docker build command failed! Command:\n\t${args.joinToString(" ")}"
             )
         }
 
@@ -62,10 +69,13 @@ class DockerBuildCommand(
 
     class Builder(private val shellHelper: ShellHelper) {
         private var buildPath: Path? = null
+        private var dockerfilePath: Path? = null
         private val tags: MutableSet<DockerTagArgument> = HashSet()
         private val buildArguments: MutableSet<DockerBuildArgument> = HashSet()
 
         fun atBuildPath(buildPath: Path) = returnThis { this.buildPath = buildPath }
+
+        fun atBuildPath(buildPath: File) = atBuildPath(buildPath.toPath())
 
         fun atBuildPath(buildPath: String) = returnThis { this.buildPath = Paths.get(buildPath) }
 
@@ -76,13 +86,20 @@ class DockerBuildCommand(
         fun addBuildArgument(buildArgument: DockerBuildArgument) = returnThis { buildArguments.add(buildArgument) }
 
         fun addBuildArgument(buildArgumentName: String, buildArgumentValue: String) =
-            addBuildArgument(DockerBuildArgument(buildArgumentName, buildArgumentValue, shellHelper.shellQuote))
+                addBuildArgument(DockerBuildArgument(buildArgumentName, buildArgumentValue, shellHelper.shellQuote))
+
+        fun withDockerfilePath(dockerfilePath: Path) = returnThis { this.dockerfilePath = dockerfilePath }
+
+        fun withDockerfilePath(dockerfilePath: File) = withDockerfilePath(dockerfilePath.toPath())
+
+        fun withDockerfilePath(dockerfilePath: String) = withDockerfilePath(Paths.get(dockerfilePath))
 
         fun toCommand() = DockerBuildCommand(
-            shellHelper,
-            requireNotNull(buildPath) { "Build path cannot be null!" },
-            tags.toSet(),
-            buildArguments.toSet()
+                shellHelper,
+                requireNotNull(buildPath) { "Build path cannot be null!" },
+                tags.toSet(),
+                buildArguments.toSet(),
+                dockerfilePath?.toAbsolutePath()
         )
 
         fun execute() = toCommand().execute()

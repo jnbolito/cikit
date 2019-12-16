@@ -5,11 +5,8 @@ import io.bolito.cikit.shell.ShellHelper
 import io.bolito.cikit.util.io.toPath
 import io.bolito.cikit.util.io.toPathNullable
 import io.bolito.cikit.util.kotlin.returnThis
-import java.lang.IllegalArgumentException
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlin.contracts.ExperimentalContracts
-import kotlin.contracts.contract
 
 enum class DockerMountType(val mountTypeName: String) {
     BIND("bind"),
@@ -21,12 +18,12 @@ data class DockerVolumeOption(val name: String, val value: String) {
     val asOption: String = "volume-opt=$name=$value"
 }
 
-private val DEFAULT_PROTOCOL = DockerPortMappingArgument.Protocol.TCP
+val DOCKER_DEFAULT_PROTOCOL = DockerPortMappingArgument.Protocol.TCP
 
 data class DockerPortMappingArgument(
         val hostPort: Int,
         val containerPort: Int,
-        val protocol: Protocol = DEFAULT_PROTOCOL
+        val protocol: Protocol = DOCKER_DEFAULT_PROTOCOL
 ) : ShellArgument {
     override val asShellArgument: String = "--mount $hostPort:$containerPort/${protocol.protocolName}"
 
