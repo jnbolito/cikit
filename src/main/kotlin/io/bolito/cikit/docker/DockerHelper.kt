@@ -5,6 +5,7 @@ import io.bolito.cikit.docker.command.DockerRunCommand
 import io.bolito.cikit.shell.OutputMode
 import io.bolito.cikit.shell.ShellHelper
 import org.gradle.api.Project
+import java.nio.file.Path
 
 class DockerHelper(
     private val project: Project,
@@ -23,6 +24,6 @@ class DockerHelper(
     }
 
     val container: DockerContainer.Builder = DockerContainer.Builder(shellHelper)
-    fun run() = DockerRunCommand.Builder(shellHelper)
-    fun build() = DockerBuildCommand.Builder(shellHelper)
+    fun run(image: String) = DockerRunCommand.Builder(shellHelper, image)
+    fun build(buildPath: Path) = DockerBuildCommand.Builder(shellHelper, buildPath)
 }
