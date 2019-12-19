@@ -7,7 +7,6 @@ import io.bolito.cikit.util.io.toPath
 import io.bolito.cikit.util.kotlin.returnThis
 import java.io.File
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.time.Instant
 
 
@@ -21,6 +20,7 @@ class DockerRunCommand(
         private val environmentVariables: Set<DockerEnvVarArgument>,
         private val removeContainer: Boolean = false,
         private val name: String? = null,
+        private val workDir: String? = null,
         private val cidFilePrefix: String = "cikit-docker"
 ) : DockerCommand<DockerRunCommandResult> {
     init {
@@ -29,7 +29,7 @@ class DockerRunCommand(
 
     override fun execute(): DockerRunCommandResult = execute(emptyMap())
 
-    fun execute(envVars: Map<String, String>): DockerRunCommandResult {
+    fun execute(envVars: Map<String, Any>): DockerRunCommandResult {
         // note that unlike createTempFile this DOESN'T actually create the file. This is important as docker won't
         // let you do anything if the file already exists.
         val cidFile = File(generateTempFilePath(cidFilePrefix).toString())
@@ -80,6 +80,13 @@ class DockerRunCommand(
         // 'static' environment variables
         args.addAll(environmentVariables.asSequence().map { it.asShellArgument })
 
+
+        // with working directory
+        if (workDir !== null) {
+            args.add("--workdir")
+            args.add(workDir)
+        }
+
         // with image
         args.add(image)
 
@@ -95,16 +102,27 @@ class DockerRunCommand(
 
 
     class Builder(private val shellHelper: ShellHelper, private val image: String) {
-        private var removeContainer: Boolean = false
+        private var removeContainerAfterRun: Boolean = false
         private var command: String? = null
         private val commandArguments: MutableList<String> = ArrayList()
         private val mountArguments: MutableList<DockerMountArgument> = ArrayList()
         private val portMappingArguments: MutableList<DockerPortMappingArgument> = ArrayList()
         private val envVarArguments: MutableSet<DockerEnvVarArgument> = HashSet()
+        private var workDir: String? = null
 
         fun addMountArgument(mountArgument: DockerMountArgument) = returnThis { mountArguments.add(mountArgument) }
 
-        fun addBindMount(source: Path, destination: Path, readOnly: Boolean = true) =
+        fun addBindMount(source: File, destination: String, readOnly: Boolean = true) =
+                addMountArgument(
+                        DockerMountArgument(
+                                DockerMountType.BIND,
+                                source.toPath(),
+                                destination,
+                                readOnly
+                        )
+                )
+
+        fun addBindMount(source: Path, destination: String, readOnly: Boolean = true) =
                 addMountArgument(
                         DockerMountArgument(
                                 DockerMountType.BIND,
@@ -119,19 +137,19 @@ class DockerRunCommand(
                         DockerMountArgument(
                                 DockerMountType.BIND,
                                 source.toPath(),
-                                destination.toPath(),
+                                destination,
                                 readOnly
                         )
                 )
 
-        fun addNamedVolume(volumeName: String, destination: Path, readOnly: Boolean = true) =
+        fun addNamedVolume(volumeName: String, destination: String, readOnly: Boolean = true) =
                 addMountArgument(DockerMountArgument(DockerMountType.VOLUME, volumeName, destination, readOnly))
 
-        fun addEnvironmentVariable(envVarArgument: DockerEnvVarArgument) =
+        fun addEnvVar(envVarArgument: DockerEnvVarArgument) =
                 returnThis { envVarArguments.add(envVarArgument) }
 
-        fun addEnvironmentVariable(varName: String, varValue: String) =
-                addEnvironmentVariable(DockerEnvVarArgument(varName, varValue, shellHelper.shellQuote))
+        fun addEnvVar(varName: String, varValue: Any) =
+                addEnvVar(DockerEnvVarArgument(varName, varValue, shellHelper.shellQuote))
 
         fun addPortMapping(portMappingArgument: DockerPortMappingArgument) =
                 returnThis { portMappingArguments.add(portMappingArgument) }
@@ -146,7 +164,12 @@ class DockerRunCommand(
 
         fun addCommandArgument(vararg commandArgument: String) = returnThis { commandArguments.addAll(commandArgument) }
 
-        fun removeContainer() = returnThis { removeContainer = true }
+        fun removeContainerAfterRun() = returnThis { removeContainerAfterRun = true }
+
+        fun withWorkDir(workDir: String) = returnThis { this.workDir = workDir }
+
+        fun withEnvVars(envVars: Map<String, Any>)
+                = returnThis { envVars.asSequence().forEach { addEnvVar(it.key, it.value) } }
 
         fun toCommand(): DockerRunCommand = DockerRunCommand(
                 shellHelper,
@@ -156,10 +179,17 @@ class DockerRunCommand(
                 mountArguments.toList(),
                 portMappingArguments.toList(),
                 envVarArguments.toSet(),
-                removeContainer
+                removeContainerAfterRun,
+                workDir = workDir
         )
 
-        fun execute() = toCommand().execute()
+        fun execute(removeContainer: Boolean = false): DockerRunCommandResult {
+            if (removeContainer) {
+                removeContainerAfterRun()
+            }
+
+            return toCommand().execute()
+        }
     }
 }
 
@@ -202,7 +232,7 @@ data class DockerPortMappingArgument(
 
 data class DockerEnvVarArgument(
         val name: String,
-        val value: String,
+        val value: Any,
         val shellQuote: String = "'"
 ) : ShellArgument {
     override val asShellArgument: String = "-e $name=$shellQuote$value$shellQuote"
@@ -212,7 +242,7 @@ data class DockerEnvVarArgument(
 data class DockerMountArgument(
         val type: DockerMountType,
         val source: String?,
-        val destination: Path,
+        val destination: String,
         val readOnly: Boolean = true,
         val volumeOptions: List<DockerVolumeOption> = emptyList()
 ) : ShellArgument {
@@ -222,23 +252,7 @@ data class DockerMountArgument(
             destination: String,
             readOnly: Boolean = true,
             volumeOptions: List<DockerVolumeOption> = emptyList()
-    ) : this(type, source?.toAbsolutePath().toString(), Paths.get(destination), readOnly, volumeOptions)
-
-    constructor(
-            type: DockerMountType,
-            source: Path?,
-            destination: Path,
-            readOnly: Boolean = true,
-            volumeOptions: List<DockerVolumeOption> = emptyList()
     ) : this(type, source?.toAbsolutePath().toString(), destination, readOnly, volumeOptions)
-
-    constructor(
-            type: DockerMountType,
-            source: String?,
-            destination: String,
-            readOnly: Boolean = true,
-            volumeOptions: List<DockerVolumeOption> = emptyList()
-    ) : this(type, source, destination.toPath(), readOnly, volumeOptions)
 
     init {
         // only volumes may omit the source option
@@ -250,12 +264,12 @@ data class DockerMountArgument(
 
     override val asShellArgument: String = let {
         val stringBuffer = StringBuffer("--mount ")
-        stringBuffer.append(" 'type=${type.mountTypeName}")
+        stringBuffer.append("'type=${type.mountTypeName}")
 
         if (source !== null) {
             stringBuffer.append(",src=$source")
         }
-        stringBuffer.append("dst=$destination")
+        stringBuffer.append(",dst=$destination")
         if (readOnly) {
             stringBuffer.append(",readonly")
         }
@@ -263,6 +277,7 @@ data class DockerMountArgument(
             stringBuffer.append(volumeOptions.joinToString(separator = ",", prefix = ",") { it.asOption })
         }
 
+        stringBuffer.append("'")
         return@let stringBuffer.toString()
     }
 }

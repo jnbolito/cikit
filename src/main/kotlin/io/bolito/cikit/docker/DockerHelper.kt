@@ -26,6 +26,7 @@ class DockerHelper(
     }
 
     fun run(image: String) = DockerRunCommand.Builder(shellHelper, image)
+    fun run(imageName: String, imageTag: String) = DockerRunCommand.Builder(shellHelper, "$imageName:$imageTag")
     fun build(buildPath: Path) = DockerBuildCommand.Builder(shellHelper, buildPath)
     fun build(buildPath: File) = DockerBuildCommand.Builder(shellHelper, buildPath.toPath())
     fun build(buildPath: String) = DockerBuildCommand.Builder(shellHelper, Paths.get(buildPath))
