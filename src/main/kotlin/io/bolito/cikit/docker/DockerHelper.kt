@@ -11,7 +11,7 @@ import java.nio.file.Paths
 
 class DockerHelper(
     private val project: Project,
-    private val shellHelper: ShellHelper = ShellHelper(project = project)
+    val shellHelper: ShellHelper = ShellHelper(project = project)
 ) {
     val clientVersion: String by lazy {
         shellHelper.sh(OutputMode.STRING, "docker", "version", "--format", "'{{.Client.Version}}'")
