@@ -1,8 +1,7 @@
 package io.bolito.cikit.shell
 
-import io.bolito.cikit.util.io.NullOutputStream
-import io.bolito.cikit.util.io.TeeOutputStream
-import org.gradle.api.Action
+import io.bolito.cikit.internal.util.io.NullOutputStream
+import io.bolito.cikit.internal.util.io.TeeOutputStream
 import org.gradle.api.Project
 import org.gradle.process.ExecSpec
 import java.io.ByteArrayOutputStream
@@ -16,8 +15,8 @@ interface ShellArgument {
 }
 
 data class ShellResult(
-        val exitCode: Int,
-        val standardOutput: String
+    val exitCode: Int,
+    val standardOutput: String
 ) {
     val isSuccess: Boolean = exitCode == 0
 }
@@ -37,8 +36,8 @@ class ByteArrayOutputCapturer(private val outputStream: ByteArrayOutputStream) :
 }
 
 data class ShellOutputData(
-        val outputStream: OutputStream,
-        val outputCapturer: OutputCapturer = EmptyOutputCapturer
+    val outputStream: OutputStream,
+    val outputCapturer: OutputCapturer = EmptyOutputCapturer
 )
 
 enum class OutputMode(val shellOutputDataFactory: () -> ShellOutputData) {
@@ -50,24 +49,30 @@ enum class OutputMode(val shellOutputDataFactory: () -> ShellOutputData) {
     }),
     STRING_AND_STDOUT({
         val byteOutputStream = ByteArrayOutputStream()
-        ShellOutputData(TeeOutputStream(System.out, byteOutputStream), ByteArrayOutputCapturer(byteOutputStream))
+        ShellOutputData(
+            TeeOutputStream(
+                System.out,
+                byteOutputStream
+            ), ByteArrayOutputCapturer(byteOutputStream)
+        )
     })
 }
 
 private val DO_NOTHING_ACTION: (ExecSpec) -> Unit = {}
 
 private fun internalSh(
-        outputMode: OutputMode,
-        project: Project,
-        shellCommandArgs: List<String>,
-        customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION,
-        vararg argument: String
+    outputMode: OutputMode,
+    project: Project,
+    shellCommandArgs: List<String>,
+    customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION,
+    vararg argument: String
 ): ShellResult {
     val args = ArrayList(shellCommandArgs)
     args.add(argument.joinToString(" "))
 
     val (outputStream, outputCapturer) = outputMode.shellOutputDataFactory()
     val exitValue = project.exec {
+        it.workingDir(project.rootDir)
         customAction(it)
         it.commandLine(args)
         it.standardOutput = outputStream
@@ -77,31 +82,31 @@ private fun internalSh(
 }
 
 class ShellHelper(
-        val shellQuote: String = "'",
-        private val shellCommandArgs: List<String> = DEFAULT_SHELL_ARGS,
-        private val project: Project
+    val shellQuote: String = "'",
+    private val shellCommandArgs: List<String> = DEFAULT_SHELL_ARGS,
+    private val project: Project
 ) {
     fun sh(outputMode: OutputMode, vararg argument: String, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION) =
-            internalSh(outputMode, project, shellCommandArgs, customAction, *argument)
+        internalSh(outputMode, project, shellCommandArgs, customAction, *argument)
 
     fun sh(outputMode: OutputMode, arguments: List<String>, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION) =
-            internalSh(outputMode, project, shellCommandArgs, customAction, *arguments.toTypedArray())
+        internalSh(outputMode, project, shellCommandArgs, customAction, *arguments.toTypedArray())
 
     fun sh(arguments: List<String>, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION) =
-            internalSh(DEFAULT_OUTPUT_MODE, project, shellCommandArgs, customAction, *arguments.toTypedArray())
+        internalSh(DEFAULT_OUTPUT_MODE, project, shellCommandArgs, customAction, *arguments.toTypedArray())
 
     fun sh(vararg argument: String, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION) =
-            internalSh(DEFAULT_OUTPUT_MODE, project, shellCommandArgs, customAction, *argument)
+        internalSh(DEFAULT_OUTPUT_MODE, project, shellCommandArgs, customAction, *argument)
 }
 
 fun Project.sh(outputMode: OutputMode, vararg argument: String, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION) =
-        internalSh(outputMode, this, DEFAULT_SHELL_ARGS, customAction, *argument)
+    internalSh(outputMode, this, DEFAULT_SHELL_ARGS, customAction, *argument)
 
-fun Project.sh(vararg argument: String, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION)
-        = internalSh(DEFAULT_OUTPUT_MODE, this, DEFAULT_SHELL_ARGS, customAction, *argument)
+fun Project.sh(vararg argument: String, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION) =
+    internalSh(DEFAULT_OUTPUT_MODE, this, DEFAULT_SHELL_ARGS, customAction, *argument)
 
 fun Project.sh(outputMode: OutputMode, arguments: List<String>, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION) =
-        internalSh(outputMode, this, DEFAULT_SHELL_ARGS,  customAction, *arguments.toTypedArray())
+    internalSh(outputMode, this, DEFAULT_SHELL_ARGS, customAction, *arguments.toTypedArray())
 
 fun Project.sh(arguments: List<String>, customAction: (ExecSpec) -> Unit = DO_NOTHING_ACTION) =
-        internalSh(DEFAULT_OUTPUT_MODE, this, DEFAULT_SHELL_ARGS, customAction, *arguments.toTypedArray())
+    internalSh(DEFAULT_OUTPUT_MODE, this, DEFAULT_SHELL_ARGS, customAction, *arguments.toTypedArray())

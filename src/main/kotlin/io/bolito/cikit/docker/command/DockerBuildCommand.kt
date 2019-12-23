@@ -3,7 +3,7 @@ package io.bolito.cikit.docker.command
 import io.bolito.cikit.shell.ShellArgument
 import io.bolito.cikit.shell.ShellHelper
 import io.bolito.cikit.util.io.generateTempFilePath
-import io.bolito.cikit.util.kotlin.returnThis
+import io.bolito.cikit.internal.util.kotlin.returnThis
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths

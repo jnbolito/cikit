@@ -1,4 +1,4 @@
-package io.bolito.cikit.util.io
+package io.bolito.cikit.internal.util.io
 
 import java.io.OutputStream
 
